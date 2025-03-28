@@ -1,16 +1,9 @@
 import { 
-  CloudFunctionsServiceClient, 
-  protos 
+  CloudFunctionsServiceClient
 } from '@google-cloud/functions';
 import { 
-  Logging, 
-  Entry, 
-  Log 
+  Logging
 } from '@google-cloud/logging';
-import { 
-  GetSourceRequest, 
-  ListFunctionsRequest 
-} from '@google-cloud/functions/build/protos/protos';
 
 /**
  * Cloud Functions Manager for GCP MCP Server
@@ -41,7 +34,7 @@ export class CloudFunctionsManager {
   async listFunctions() {
     try {
       const parent = `projects/${this.projectId}/locations/${this.region}`;
-      const request: ListFunctionsRequest = {
+      const request = {
         parent,
       };
 
@@ -105,9 +98,7 @@ export class CloudFunctionsManager {
           eventType: functionDetails.eventTrigger.eventType,
           resource: functionDetails.eventTrigger.resource,
           service: functionDetails.eventTrigger.service,
-        } : undefined,
-        buildConfig: functionDetails.buildConfig,
-        serviceConfig: functionDetails.serviceConfig,
+        } : undefined
       };
     } catch (error) {
       console.error(`Error getting function ${functionName} details:`, error);
@@ -130,8 +121,7 @@ export class CloudFunctionsManager {
         return {
           type: 'repository',
           url: functionDetails.sourceRepository.url,
-          deployedUrl: functionDetails.sourceRepository.deployedUrl,
-          repositoryType: functionDetails.sourceRepository.repositoryType,
+          deployedUrl: functionDetails.sourceRepository.deployedUrl
         };
       }
       
@@ -144,13 +134,8 @@ export class CloudFunctionsManager {
       }
 
       // Try to get the actual source code if available
-      const request: GetSourceRequest = {
-        name,
-      };
-      
-      // This call may not work for all functions depending on how they're deployed
       try {
-        const [source] = await this.client.generateDownloadUrl(request);
+        const [source] = await this.client.generateDownloadUrl({ name });
         return {
           type: 'download',
           downloadUrl: source.downloadUrl,
@@ -183,7 +168,10 @@ export class CloudFunctionsManager {
       });
       
       return entries.map((entry) => {
-        const timestamp = entry.metadata?.timestamp?.toISOString() || '';
+        const timestamp = typeof entry.metadata?.timestamp === 'object' 
+          ? (entry.metadata.timestamp.toString ? entry.metadata.timestamp.toString() : '') 
+          : entry.metadata?.timestamp || '';
+        
         const severity = entry.metadata?.severity || '';
         
         // Handle different payload types
@@ -267,7 +255,10 @@ export class CloudFunctionsManager {
       });
       
       return entries.map((entry) => {
-        const timestamp = entry.metadata?.timestamp?.toISOString() || '';
+        const timestamp = typeof entry.metadata?.timestamp === 'object' 
+          ? (entry.metadata.timestamp.toString ? entry.metadata.timestamp.toString() : '') 
+          : entry.metadata?.timestamp || '';
+          
         const severity = entry.metadata?.severity || '';
         
         // Handle different payload types
