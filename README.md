@@ -1,17 +1,29 @@
-# GCP MCP
+# GCP MCP with Enhanced Cloud Functions Support
 
-A Model Context Protocol (MCP) server that enables AI assistants like Claude to interact with your Google Cloud Platform environment. This allows for natural language querying and management of your GCP resources during conversations.
+A Model Context Protocol (MCP) server that enables AI assistants like Claude to interact with your Google Cloud Platform environment. This fork adds enhanced Cloud Functions support for debugging and management, allowing for natural language querying and management of your GCP resources during conversations.
 
 ![GCP MCP Demo](images/claude.png)
 
 ## Features
 
 * 🔍 Query and modify GCP resources using natural language
+* 🔧 **Enhanced Cloud Functions support for debugging and testing**
 * ☁️ Support for multiple GCP projects
 * 🌐 Multi-region support
 * 🔐 Secure credential handling (no credentials are exposed to external services)
 * 🏃‍♂️ Local execution with your GCP credentials
 * 🔄 Automatic retries for improved reliability
+
+## Cloud Functions Features
+
+This fork adds extensive Cloud Functions support:
+
+- **List Cloud Functions** - View all Cloud Functions in a project/region
+- **Get Function Details** - Detailed information about a specific function
+- **Log Analysis** - View and filter function logs
+- **Error Debugging** - Focus on error logs for quick debugging
+- **Function Testing** - Test HTTP-triggered functions with custom payloads
+- **Performance Metrics** - View function execution metrics
 
 ## Prerequisites
 
@@ -23,13 +35,18 @@ A Model Context Protocol (MCP) server that enables AI assistants like Claude to 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/eniayomi/gcp-mcp
+git clone https://github.com/hdbookie/gcp-mcp
 cd gcp-mcp
 ```
 
 2. Install dependencies:
 ```bash
 npm install
+```
+
+3. Build the TypeScript code:
+```bash
+npm run build
 ```
 
 ## Configuration
@@ -40,19 +57,6 @@ npm install
 
 2. Add the following entry to your `claude_desktop_config.json`:
 
-via npm:
-```json
-{
-  "mcpServers": {
-    "gcp": {
-      "command": "sh",
-      "args": ["-c", "npx -y gcp-mcp"]
-    }
-  }
-}
-```
-
-If you installed from source:
 ```json
 {
   "mcpServers": {
@@ -61,7 +65,7 @@ If you installed from source:
       "args": [
         "--silent",
         "--prefix",
-        "/path/to/gcp-mcp",
+        "/path/to/your/gcp-mcp",
         "start"
       ]
     }
@@ -69,7 +73,7 @@ If you installed from source:
 }
 ```
 
-Replace `/path/to/gcp-mcp` with the actual path to your project directory if using source installation.
+Replace `/path/to/your/gcp-mcp` with the actual path to your project directory.
 
 ### Cursor
 
@@ -79,7 +83,13 @@ Replace `/path/to/gcp-mcp` with the actual path to your project directory if usi
 ```json
 {
   "gcp": {
-    "command": "npx -y gcp-mcp"
+    "command": "npm",
+    "args": [
+      "--silent",
+      "--prefix",
+      "/path/to/your/gcp-mcp",
+      "start"
+    ]
   }
 }
 ```
@@ -92,7 +102,13 @@ Replace `/path/to/gcp-mcp` with the actual path to your project directory if usi
 {
   "mcpServers": {
     "gcp": {
-      "command": "npx -y gcp-mcp"
+      "command": "npm",
+      "args": [
+        "--silent",
+        "--prefix",
+        "/path/to/your/gcp-mcp",
+        "start"
+      ]
     }
   }
 }
@@ -103,7 +119,12 @@ Replace `/path/to/gcp-mcp` with the actual path to your project directory if usi
 1. Set up GCP credentials:
    - Set up application default credentials using `gcloud auth application-default login`
 
-2. Refresh your AI assistant (Claude Desktop/Cursor/Windsurf)
+2. Ensure you have the necessary IAM permissions for Cloud Functions:
+   - `cloudfunctions.functions.get`
+   - `cloudfunctions.functions.list`
+   - `logging.logEntries.list` (for logs)
+
+3. Refresh your AI assistant (Claude Desktop/Cursor/Windsurf)
 
 ## Usage
 
@@ -118,7 +139,35 @@ Start by selecting a project or asking questions like:
 * "List all Cloud Run services"
 * "Show me BigQuery datasets and tables"
 
+## Cloud Functions Usage Examples
+
+Here are some example prompts to use with the enhanced Cloud Functions support:
+
+```
+List all Cloud Functions in my project
+
+Get details for my function named "process-image"
+
+Show me logs from my "auth-handler" function
+
+What errors have occurred in my "payment-processor" function in the last 24 hours?
+
+Test my HTTP function "submit-form" with this payload: {"name": "Test User", "email": "test@example.com"}
+
+What are the performance metrics for my "data-sync" function?
+```
+
+You can specify regions explicitly:
+
+```
+List all Cloud Functions in europe-west1
+
+Get logs for my "data-processor" function in us-east1
+```
+
 ## Available Tools
+
+In addition to the standard GCP-MCP tools, this enhanced version includes:
 
 1. `run-gcp-code`: Execute GCP API calls using TypeScript code
 2. `list-projects`: List all accessible GCP projects
@@ -129,6 +178,12 @@ Start by selecting a project or asking questions like:
 7. `list-gke-clusters`: List all GKE clusters in the current project
 8. `list-sql-instances`: List all Cloud SQL instances in the current project
 9. `get-logs`: Get Cloud Logging entries for the current project
+10. `list-cloud-functions`: List all Cloud Functions in a region
+11. `get-cloud-function-details`: Get detailed information about a specific function
+12. `get-cloud-function-logs`: Get logs for a specific function
+13. `get-cloud-function-errors`: Get error logs for a specific function
+14. `test-http-function`: Test an HTTP-triggered function
+15. `get-cloud-function-metrics`: Get execution metrics for a function
 
 ## Example Interactions
 
@@ -142,21 +197,26 @@ List all GCP projects I have access to
 Use project my-project-id
 ```
 
-3. Check billing status:
+3. List all Cloud Functions:
 ```
-What's my current billing status?
+List all Cloud Functions in my project
 ```
 
-4. View logs:
+4. View Cloud Function logs:
 ```
-Show me the last 10 log entries from my project
+Show me the logs from my "process-payment" function
+```
+
+5. Test a Cloud Function:
+```
+Test my HTTP function "process-order" with this JSON payload: {"orderId": "12345", "customerId": "customer-123"}
 ```
 
 ## Supported Services
 
 * Google Compute Engine
 * Cloud Storage
-* Cloud Functions
+* **Cloud Functions (Enhanced)**
 * Cloud Run
 * BigQuery
 * Cloud SQL
@@ -178,10 +238,15 @@ Common issues:
 2. Permission errors: Check IAM roles for your account
 3. API errors: Verify that required APIs are enabled in your project
 
+Common Cloud Functions issues:
+1. **Permission errors**: Ensure your account has the necessary IAM roles
+2. **Region mismatches**: Verify the region where your functions are deployed
+3. **HTTP testing failures**: Ensure the function accepts HTTP requests and has the proper IAM permissions
+
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request. 
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-MIT 
+MIT
