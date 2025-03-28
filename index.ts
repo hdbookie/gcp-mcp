@@ -20,6 +20,7 @@ import { BudgetServiceClient } from '@google-cloud/billing-budgets';
 import { ClusterManagerClient } from '@google-cloud/container';
 import { Logging, Entry, Log } from '@google-cloud/logging';
 import { SqlInstancesServiceClient } from '@google-cloud/sql';
+import { CloudFunctionsManager } from './cloud-functions';
 
 const codePrompt = `Your job is to answer questions about GCP environment by writing Javascript/TypeScript code using Google Cloud Client Libraries. The code must adhere to a few rules:
 - Must use promises and async/await
@@ -208,6 +209,126 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: [],
         },
+      },
+      {
+        name: "list-cloud-functions",
+        description: "List all Cloud Functions in the specified region (defaults to us-central1)",
+        inputSchema: {
+          type: "object",
+          properties: {
+            region: {
+              type: "string",
+              description: "The GCP region to list functions from (defaults to us-central1)",
+            },
+          },
+          required: [],
+        },
+      },
+      {
+        name: "get-cloud-function-details",
+        description: "Get detailed information about a specific Cloud Function",
+        inputSchema: {
+          type: "object",
+          properties: {
+            functionName: {
+              type: "string",
+              description: "The name of the Cloud Function",
+            },
+            region: {
+              type: "string",
+              description: "The GCP region where the function is deployed (defaults to us-central1)",
+            },
+          },
+          required: ["functionName"],
+        },
+      },
+      {
+        name: "get-cloud-function-logs",
+        description: "Get logs for a specific Cloud Function",
+        inputSchema: {
+          type: "object",
+          properties: {
+            functionName: {
+              type: "string",
+              description: "The name of the Cloud Function",
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of log entries to retrieve (default: 50)",
+            },
+            region: {
+              type: "string",
+              description: "The GCP region where the function is deployed (defaults to us-central1)",
+            },
+          },
+          required: ["functionName"],
+        },
+      },
+      {
+        name: "get-cloud-function-errors",
+        description: "Get error logs for a specific Cloud Function",
+        inputSchema: {
+          type: "object",
+          properties: {
+            functionName: {
+              type: "string",
+              description: "The name of the Cloud Function",
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of error logs to retrieve (default: 10)",
+            },
+            region: {
+              type: "string",
+              description: "The GCP region where the function is deployed (defaults to us-central1)",
+            },
+          },
+          required: ["functionName"],
+        },
+      },
+      {
+        name: "test-http-function",
+        description: "Test an HTTP-triggered Cloud Function by sending a request",
+        inputSchema: {
+          type: "object",
+          properties: {
+            functionName: {
+              type: "string",
+              description: "The name of the Cloud Function",
+            },
+            payload: {
+              type: "object",
+              description: "JSON payload to send to the function",
+            },
+            region: {
+              type: "string",
+              description: "The GCP region where the function is deployed (defaults to us-central1)",
+            },
+          },
+          required: ["functionName"],
+        },
+      },
+      {
+        name: "get-cloud-function-metrics",
+        description: "Get execution metrics for a Cloud Function",
+        inputSchema: {
+          type: "object",
+          properties: {
+            functionName: {
+              type: "string",
+              description: "The name of the Cloud Function",
+            },
+            hours: {
+              type: "number",
+              description: "Time range in hours to analyze (default: 24)",
+            },
+            region: {
+              type: "string",
+              description: "The GCP region where the function is deployed (defaults to us-central1)",
+            },
+          },
+          required: ["functionName"],
+        },
       }
     ],
   };
@@ -245,6 +366,40 @@ const ListGKEClustersSchema = z.object({
 const GetLogsSchema = z.object({
   filter: z.string().optional(),
   pageSize: z.number().optional(),
+});
+
+// Cloud Functions Schemas
+const ListCloudFunctionsSchema = z.object({
+  region: z.string().optional(),
+});
+
+const GetCloudFunctionDetailsSchema = z.object({
+  functionName: z.string(),
+  region: z.string().optional(),
+});
+
+const GetCloudFunctionLogsSchema = z.object({
+  functionName: z.string(),
+  limit: z.number().optional(),
+  region: z.string().optional(),
+});
+
+const GetCloudFunctionErrorsSchema = z.object({
+  functionName: z.string(),
+  limit: z.number().optional(),
+  region: z.string().optional(),
+});
+
+const TestHttpFunctionSchema = z.object({
+  functionName: z.string(),
+  payload: z.any().optional(),
+  region: z.string().optional(),
+});
+
+const GetCloudFunctionMetricsSchema = z.object({
+  functionName: z.string(),
+  hours: z.number().optional(),
+  region: z.string().optional(),
 });
 
 interface GKECluster {
@@ -646,7 +801,179 @@ server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest)
         console.error('Error getting logs:', error);
         return createTextResponse(`Error getting logs: ${error.message}`);
       }
-    } else {
+    } 
+    // Cloud Functions implementation
+    else if (name === "list-cloud-functions") {
+      try {
+        // Check if a project is selected
+        if (!selectedProject) {
+          return createTextResponse("No project selected. Please use 'select-project' first.");
+        }
+
+        const { region } = ListCloudFunctionsSchema.parse(args);
+        const cloudFunctionsManager = new CloudFunctionsManager(selectedProject, region || selectedRegion);
+        const functions = await cloudFunctionsManager.listFunctions();
+
+        return createTextResponse(JSON.stringify(
+          {
+            project: selectedProject,
+            region: region || selectedRegion,
+            functions: functions
+          }, 
+          null, 
+          2
+        ));
+      } catch (error: any) {
+        console.error('Error listing Cloud Functions:', error);
+        return createTextResponse(`Error listing Cloud Functions: ${error.message}`);
+      }
+    }
+    else if (name === "get-cloud-function-details") {
+      try {
+        // Check if a project is selected
+        if (!selectedProject) {
+          return createTextResponse("No project selected. Please use 'select-project' first.");
+        }
+
+        const { functionName, region } = GetCloudFunctionDetailsSchema.parse(args);
+        const cloudFunctionsManager = new CloudFunctionsManager(
+          selectedProject, 
+          region || selectedRegion
+        );
+        const functionDetails = await cloudFunctionsManager.getFunctionDetails(functionName);
+
+        return createTextResponse(JSON.stringify(
+          {
+            project: selectedProject,
+            region: region || selectedRegion,
+            function: functionDetails
+          }, 
+          null, 
+          2
+        ));
+      } catch (error: any) {
+        console.error('Error getting Cloud Function details:', error);
+        return createTextResponse(`Error getting Cloud Function details: ${error.message}`);
+      }
+    }
+    else if (name === "get-cloud-function-logs") {
+      try {
+        // Check if a project is selected
+        if (!selectedProject) {
+          return createTextResponse("No project selected. Please use 'select-project' first.");
+        }
+
+        const { functionName, limit, region } = GetCloudFunctionLogsSchema.parse(args);
+        const cloudFunctionsManager = new CloudFunctionsManager(
+          selectedProject, 
+          region || selectedRegion
+        );
+        const logs = await cloudFunctionsManager.getFunctionLogs(functionName, limit || 50);
+
+        return createTextResponse(JSON.stringify(
+          {
+            project: selectedProject,
+            region: region || selectedRegion,
+            function: functionName,
+            logs: logs
+          }, 
+          null, 
+          2
+        ));
+      } catch (error: any) {
+        console.error('Error getting Cloud Function logs:', error);
+        return createTextResponse(`Error getting Cloud Function logs: ${error.message}`);
+      }
+    }
+    else if (name === "get-cloud-function-errors") {
+      try {
+        // Check if a project is selected
+        if (!selectedProject) {
+          return createTextResponse("No project selected. Please use 'select-project' first.");
+        }
+
+        const { functionName, limit, region } = GetCloudFunctionErrorsSchema.parse(args);
+        const cloudFunctionsManager = new CloudFunctionsManager(
+          selectedProject, 
+          region || selectedRegion
+        );
+        const errors = await cloudFunctionsManager.getFunctionErrors(functionName, limit || 10);
+
+        return createTextResponse(JSON.stringify(
+          {
+            project: selectedProject,
+            region: region || selectedRegion,
+            function: functionName,
+            errors: errors
+          }, 
+          null, 
+          2
+        ));
+      } catch (error: any) {
+        console.error('Error getting Cloud Function errors:', error);
+        return createTextResponse(`Error getting Cloud Function errors: ${error.message}`);
+      }
+    }
+    else if (name === "test-http-function") {
+      try {
+        // Check if a project is selected
+        if (!selectedProject) {
+          return createTextResponse("No project selected. Please use 'select-project' first.");
+        }
+
+        const { functionName, payload, region } = TestHttpFunctionSchema.parse(args);
+        const cloudFunctionsManager = new CloudFunctionsManager(
+          selectedProject, 
+          region || selectedRegion
+        );
+        const result = await cloudFunctionsManager.testHttpFunction(functionName, payload || {});
+
+        return createTextResponse(JSON.stringify(
+          {
+            project: selectedProject,
+            region: region || selectedRegion,
+            function: functionName,
+            statusCode: result.statusCode,
+            response: result.response
+          }, 
+          null, 
+          2
+        ));
+      } catch (error: any) {
+        console.error('Error testing HTTP function:', error);
+        return createTextResponse(`Error testing HTTP function: ${error.message}`);
+      }
+    }
+    else if (name === "get-cloud-function-metrics") {
+      try {
+        // Check if a project is selected
+        if (!selectedProject) {
+          return createTextResponse("No project selected. Please use 'select-project' first.");
+        }
+
+        const { functionName, hours, region } = GetCloudFunctionMetricsSchema.parse(args);
+        const cloudFunctionsManager = new CloudFunctionsManager(
+          selectedProject, 
+          region || selectedRegion
+        );
+        const metrics = await cloudFunctionsManager.getFunctionMetrics(functionName, hours || 24);
+
+        return createTextResponse(JSON.stringify(
+          {
+            project: selectedProject,
+            region: region || selectedRegion,
+            function: functionName,
+            metrics: metrics
+          }, 
+          null, 
+          2
+        ));
+      } catch (error: any) {
+        console.error('Error getting Cloud Function metrics:', error);
+        return createTextResponse(`Error getting Cloud Function metrics: ${error.message}`);
+      }
+    }
+    else {
       throw new Error(`Unknown tool: ${name}`);
     }
   } catch (error: any) {
@@ -708,4 +1035,4 @@ startServer();
 
 const createTextResponse = (text: string) => ({
   content: [{ type: "text", text }],
-}); 
+});
